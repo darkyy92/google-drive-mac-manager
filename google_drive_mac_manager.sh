@@ -1,11 +1,19 @@
 #!/bin/bash
 
-# Google Drive Uninstaller/Installer for macOS
+# Google Drive Manager for macOS
 # This script completely removes Google Drive from macOS and optionally reinstalls it
 # Created by Joël Staub, 13.03.2025
 
 # Exit on errors
 set -e
+
+# Define colors
+RED=$(tput setaf 1)
+GREEN=$(tput setaf 2)
+YELLOW=$(tput setaf 3)
+BLUE=$(tput setaf 4)
+BOLD=$(tput bold)
+RESET=$(tput sgr0)
 
 # Create log file
 LOG_FILE="/tmp/google_drive_uninstall_$(date +%Y%m%d_%H%M%S).log"
@@ -13,7 +21,19 @@ touch "$LOG_FILE"
 
 # Function for logging
 log() {
-  echo "$(date +"%Y-%m-%d %H:%M:%S") - $1" | tee -a "$LOG_FILE"
+  local timestamp=$(date +"%Y-%m-%d %H:%M:%S")
+  
+  # Determine color based on message type
+  local color=$RESET
+  if [[ "$1" == *"SUCCESS"* || "$1" == *"successfully"* ]]; then
+    color=$GREEN
+  elif [[ "$1" == *"WARNING"* || "$1" == *"Not found"* ]]; then
+    color=$YELLOW
+  elif [[ "$1" == *"ERROR"* || "$1" == *"INCOMPLETE"* || "$1" == *"failed"* || "$1" == *"Failed"* ]]; then
+    color=$RED
+  fi
+  
+  echo "${color}${timestamp} - $1${RESET}" | tee -a "$LOG_FILE"
 }
 
 # Function to safely remove files
@@ -25,11 +45,11 @@ safe_remove() {
   fi
 }
 
-log "Starting Google Drive uninstallation process..."
+log "${BOLD}Starting Google Drive uninstallation process...${RESET}"
 
 # Check if script is running with root privileges
 if [ "$EUID" -ne 0 ]; then
-  log "Please run this script with sudo privileges"
+  log "${RED}ERROR: Please run this script with sudo privileges${RESET}"
   exit 1
 fi
 
@@ -37,23 +57,23 @@ fi
 CURRENT_USER=$(stat -f "%Su" /dev/console)
 USER_HOME=$(eval echo ~$CURRENT_USER)
 
-log "Detected current user: $CURRENT_USER (home: $USER_HOME)"
+log "Detected current user: ${BLUE}${CURRENT_USER}${RESET} (home: ${BLUE}${USER_HOME}${RESET})"
 
 # Force kill all "Google Drive" processes
-log "Force killing all 'Google Drive' processes..."
-pkill -9 -f "Google Drive" 2>/dev/null && log "All 'Google Drive' processes force killed" || log "No 'Google Drive' processes found to force kill"
+log "${BOLD}Force killing all 'Google Drive' processes...${RESET}"
+pkill -9 -f "Google Drive" 2>/dev/null && log "${GREEN}All 'Google Drive' processes force killed${RESET}" || log "${YELLOW}No 'Google Drive' processes found to force kill${RESET}"
 
 # Continue even if Google Drive isn't found. Just log it.
 if [ ! -d "/Applications/Google Drive.app" ] && ! pgrep -f "Google Drive" > /dev/null; then
-  log "Google Drive does not appear to be installed, but continuing cleanup."
+  log "${YELLOW}Google Drive does not appear to be installed, but continuing cleanup.${RESET}"
 fi
 
 # Remove application bundle
-log "Removing Google Drive application bundle..."
+log "${BOLD}Removing Google Drive application bundle...${RESET}"
 safe_remove "/Applications/Google Drive.app"
 
 # Remove LaunchAgents
-log "Removing LaunchAgents..."
+log "${BOLD}Removing LaunchAgents...${RESET}"
 find /Library/LaunchAgents -name "com.google.drivefs.*" -type f 2>/dev/null | while read file; do
   safe_remove "$file"
 done
@@ -64,11 +84,11 @@ find "$USER_HOME/Library/LaunchAgents" -name "com.google.drivefs.*" -type f 2>/d
 done
 
 # Remove Application Support files
-log "Removing Application Support files..."
+log "${BOLD}Removing Application Support files...${RESET}"
 safe_remove "/Library/Application Support/Google/DriveFS"
 
 # Process only the current user's directory
-log "Processing user directory: $USER_HOME"
+log "${BOLD}Processing user directory: ${USER_HOME}${RESET}"
 
 # Remove all Google Drive components for current user
 safe_remove "$USER_HOME/Library/Application Support/Google/DriveFS"
@@ -91,42 +111,43 @@ find "$USER_HOME/Library/Group Containers" -name "*group.com.google.drivefs" -ty
 done
 
 # Remove receipt files
-log "Removing receipt files..."
+log "${BOLD}Removing receipt files...${RESET}"
 find /var/db/receipts -name "com.google.drivefs*" -type f 2>/dev/null | while read file; do
   safe_remove "$file"
 done
 
 # Final check
-log "Performing final check..."
+log "${BOLD}Performing final check...${RESET}"
 INCOMPLETE=0
 
 if [ -d "/Applications/Google Drive.app" ]; then
-  log "WARNING: Google Drive.app still exists"
+  log "${RED}WARNING: Google Drive.app still exists${RESET}"
   INCOMPLETE=1
 fi
 
 if pgrep -f "Google Drive" > /dev/null; then
-  log "WARNING: Google Drive processes are still running"
+  log "${RED}WARNING: Google Drive processes are still running${RESET}"
   INCOMPLETE=1
 fi
 
 # Output result
 if [ $INCOMPLETE -eq 1 ]; then
-  log "WARNING: Some Google Drive components could not be removed. Manual intervention may be required."
-  echo "Google Drive uninstallation INCOMPLETE. Check log at $LOG_FILE for details."
+  log "${RED}WARNING: Some Google Drive components could not be removed. Manual intervention may be required.${RESET}"
+  echo "${RED}Google Drive uninstallation INCOMPLETE. Check log at $LOG_FILE for details.${RESET}"
   UNINSTALL_STATUS=1
 else
-  log "Google Drive has been successfully uninstalled!"
-  echo "Google Drive uninstallation SUCCESSFUL! Log saved to $LOG_FILE"
+  log "${GREEN}Google Drive has been successfully uninstalled!${RESET}"
+  echo "${GREEN}Google Drive uninstallation SUCCESSFUL!${RESET} Log saved to $LOG_FILE"
   UNINSTALL_STATUS=0
 fi
 
-# Ask if user wants to install Google Drive
+# Ask if user wants to install Google Drive - fixed to work with curl pipe
+echo "${BOLD}Installation Options${RESET}"
 read -p "Would you like to install the latest version of Google Drive? (y/n): " INSTALL_CHOICE < /dev/tty
 
 if [[ $INSTALL_CHOICE == "y" || $INSTALL_CHOICE == "Y" ]]; then
-  log "User chose to install Google Drive. Starting installation..."
-  echo "Installing Google Drive..."
+  log "${BLUE}User chose to install Google Drive. Starting installation...${RESET}"
+  echo "${BLUE}Installing Google Drive...${RESET}"
   
   # Create temporary directory for downloads
   TEMP_DIR="/tmp/googledrive_install"
@@ -135,31 +156,31 @@ if [[ $INSTALL_CHOICE == "y" || $INSTALL_CHOICE == "Y" ]]; then
   
   # Download Google Drive DMG
   log "Downloading Google Drive..."
-  echo "Downloading Google Drive..."
+  echo "${BOLD}Downloading Google Drive...${RESET}"
   curl -L -o "$TEMP_DIR/GoogleDrive.dmg" "https://dl.google.com/drive-file-stream/GoogleDrive.dmg"
   
   if [ $? -ne 0 ]; then
-    log "ERROR: Failed to download Google Drive"
-    echo "Installation failed: Could not download Google Drive."
+    log "${RED}ERROR: Failed to download Google Drive${RESET}"
+    echo "${RED}Installation failed: Could not download Google Drive.${RESET}"
     rm -rf "$TEMP_DIR"
     exit 1
   fi
   
   # Mount the DMG
   log "Mounting Google Drive disk image..."
-  echo "Mounting disk image..."
+  echo "${BOLD}Mounting disk image...${RESET}"
   hdiutil mount -nobrowse "$TEMP_DIR/GoogleDrive.dmg"
   
   if [ $? -ne 0 ]; then
-    log "ERROR: Failed to mount Google Drive disk image"
-    echo "Installation failed: Could not mount Google Drive disk image."
+    log "${RED}ERROR: Failed to mount Google Drive disk image${RESET}"
+    echo "${RED}Installation failed: Could not mount Google Drive disk image.${RESET}"
     rm -rf "$TEMP_DIR"
     exit 1
   fi
   
   # Install the package
   log "Installing Google Drive package..."
-  echo "Installing Google Drive..."
+  echo "${BOLD}Installing Google Drive...${RESET}"
   installer -pkg "/Volumes/Install Google Drive/GoogleDrive.pkg" -target "/"
   INSTALLER_RESULT=$?
   
@@ -173,12 +194,12 @@ if [[ $INSTALL_CHOICE == "y" || $INSTALL_CHOICE == "Y" ]]; then
   
   # Check installation result
   if [ $INSTALLER_RESULT -eq 0 ]; then
-    log "Google Drive installation SUCCESSFUL!"
-    echo "Google Drive has been successfully installed!"
+    log "${GREEN}Google Drive installation SUCCESSFUL!${RESET}"
+    echo "${GREEN}Google Drive has been successfully installed!${RESET}"
     exit 0
   else
-    log "ERROR: Google Drive installation failed with exit code $INSTALLER_RESULT"
-    echo "Google Drive installation FAILED. Check log at $LOG_FILE for details."
+    log "${RED}ERROR: Google Drive installation failed with exit code $INSTALLER_RESULT${RESET}"
+    echo "${RED}Google Drive installation FAILED. Check log at $LOG_FILE for details.${RESET}"
     exit $INSTALLER_RESULT
   fi
 else
