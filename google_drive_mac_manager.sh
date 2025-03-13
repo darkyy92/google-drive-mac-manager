@@ -122,7 +122,7 @@ else
 fi
 
 # Ask if user wants to install Google Drive
-read -p "Would you like to install the latest version of Google Drive? (y/n): " INSTALL_CHOICE
+read -p "Would you like to install the latest version of Google Drive? (y/n): " INSTALL_CHOICE < /dev/tty
 
 if [[ $INSTALL_CHOICE == "y" || $INSTALL_CHOICE == "Y" ]]; then
   log "User chose to install Google Drive. Starting installation..."
