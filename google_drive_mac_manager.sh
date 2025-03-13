@@ -1,9 +1,8 @@
 #!/bin/bash
 
-# Google Drive Uninstaller for macOS
-# This script completely removes Google Drive from macOS
-
-# Created by Joël Staub, 12.03.2025
+# Google Drive Uninstaller/Installer for macOS
+# This script completely removes Google Drive from macOS and optionally reinstalls it
+# Created by Joël Staub, 13.03.2025
 
 # Exit on errors
 set -e
@@ -115,9 +114,75 @@ fi
 if [ $INCOMPLETE -eq 1 ]; then
   log "WARNING: Some Google Drive components could not be removed. Manual intervention may be required."
   echo "Google Drive uninstallation INCOMPLETE. Check log at $LOG_FILE for details."
-  exit 1
+  UNINSTALL_STATUS=1
 else
   log "Google Drive has been successfully uninstalled!"
   echo "Google Drive uninstallation SUCCESSFUL! Log saved to $LOG_FILE"
-  exit 0
+  UNINSTALL_STATUS=0
+fi
+
+# Ask if user wants to install Google Drive
+read -p "Would you like to install the latest version of Google Drive? (y/n): " INSTALL_CHOICE
+
+if [[ $INSTALL_CHOICE == "y" || $INSTALL_CHOICE == "Y" ]]; then
+  log "User chose to install Google Drive. Starting installation..."
+  echo "Installing Google Drive..."
+  
+  # Create temporary directory for downloads
+  TEMP_DIR="/tmp/googledrive_install"
+  mkdir -p "$TEMP_DIR"
+  cd "$TEMP_DIR"
+  
+  # Download Google Drive DMG
+  log "Downloading Google Drive..."
+  echo "Downloading Google Drive..."
+  curl -L -o "$TEMP_DIR/GoogleDrive.dmg" "https://dl.google.com/drive-file-stream/GoogleDrive.dmg"
+  
+  if [ $? -ne 0 ]; then
+    log "ERROR: Failed to download Google Drive"
+    echo "Installation failed: Could not download Google Drive."
+    rm -rf "$TEMP_DIR"
+    exit 1
+  fi
+  
+  # Mount the DMG
+  log "Mounting Google Drive disk image..."
+  echo "Mounting disk image..."
+  hdiutil mount -nobrowse "$TEMP_DIR/GoogleDrive.dmg"
+  
+  if [ $? -ne 0 ]; then
+    log "ERROR: Failed to mount Google Drive disk image"
+    echo "Installation failed: Could not mount Google Drive disk image."
+    rm -rf "$TEMP_DIR"
+    exit 1
+  fi
+  
+  # Install the package
+  log "Installing Google Drive package..."
+  echo "Installing Google Drive..."
+  installer -pkg "/Volumes/Install Google Drive/GoogleDrive.pkg" -target "/"
+  INSTALLER_RESULT=$?
+  
+  # Unmount the DMG
+  log "Unmounting Google Drive disk image..."
+  hdiutil unmount "/Volumes/Install Google Drive/" -force
+  
+  # Clean up
+  log "Cleaning up temporary files..."
+  rm -rf "$TEMP_DIR"
+  
+  # Check installation result
+  if [ $INSTALLER_RESULT -eq 0 ]; then
+    log "Google Drive installation SUCCESSFUL!"
+    echo "Google Drive has been successfully installed!"
+    exit 0
+  else
+    log "ERROR: Google Drive installation failed with exit code $INSTALLER_RESULT"
+    echo "Google Drive installation FAILED. Check log at $LOG_FILE for details."
+    exit $INSTALLER_RESULT
+  fi
+else
+  log "User chose not to install Google Drive."
+  echo "Google Drive will not be installed."
+  exit $UNINSTALL_STATUS
 fi
