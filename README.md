@@ -32,6 +32,3 @@ This script will:
 
 ## License
 MIT License - Use as you wish
-
----
-Antwort von Perplexity: pplx.ai/share
