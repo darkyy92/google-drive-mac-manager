@@ -42,7 +42,7 @@ log "Detected current user: $CURRENT_USER (home: $USER_HOME)"
 
 # Force kill all "Google Drive" processes
 log "Force killing all 'Google Drive' processes..."
-pkill -9 -f "^Google Drive" 2>/dev/null && log "All 'Google Drive' processes force killed" || log "No 'Google Drive' processes found to force kill"
+pkill -9 -f "Google Drive" 2>/dev/null && log "All 'Google Drive' processes force killed" || log "No 'Google Drive' processes found to force kill"
 
 # Continue even if Google Drive isn't found. Just log it.
 if [ ! -d "/Applications/Google Drive.app" ] && ! pgrep -f "Google Drive" > /dev/null; then
